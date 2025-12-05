@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard jakości powietrza</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h2>Dashboard jakości powietrza – miasta wojewódzkie</h2>
+
+    <form action="/plot" method="post">
+        <label for="pollutant">Parametr:</label>
+        <select name="pollutant" id="pollutant">
+            {% for pollutant in pollutants %}
+                <option value="{{ pollutant }}" {% if pollutant == selected_pollutant %}selected{% endif %}>{{ pollutant }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="cities">Miasta (CMD/CTRL = wiele):</label>
+        <select name="cities" id="cities" multiple size="10">
+            {% for city in cities %}
+                <option value="{{ city }}" {% if selected_cities and city in selected_cities %}selected{% endif %}>{{ city }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Generuj wykres</button>
+    </form>
+
+    <h3>Wykres</h3>
+    {% if plot %}
+        <div id="graph-div"></div>
+        <script>
+            var graphs = {{ plot | safe }};
+            Plotly.newPlot('graph-div', graphs.data, graphs.layout);
+        </script>
+    {% endif %}
+
+    {% if stats_table %}
+        <h3>Statystyki stacji</h3>
+        <table>
+            <tr>
+                <th>Miasto</th>
+                <th>Min</th>
+                <th>Max</th>
+                <th>Średnia</th>
+                <th>Liczba dni</th>
+            </tr>
+            {% for row in stats_table %}
+                <tr>
+                    <td>{{ row.city }}</td>
+                    <td>{{ row.min }}</td>
+                    <td>{{ row.max }}</td>
+                    <td>{{ row.mean }}</td>
+                    <td>{{ row.count }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+</body>
+</html>
