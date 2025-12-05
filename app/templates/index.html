@@ -1,61 +1,155 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard jakości powietrza</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Dashboard jakości powietrza – miasta wojewódzkie</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h2>Dashboard jakości powietrza – miasta wojewódzkie</h2>
 
-    <form action="/plot" method="post">
-        <label for="pollutant">Parametr:</label>
-        <select name="pollutant" id="pollutant">
-            {% for pollutant in pollutants %}
-                <option value="{{ pollutant }}" {% if pollutant == selected_pollutant %}selected{% endif %}>{{ pollutant }}</option>
-            {% endfor %}
-        </select>
+<h1>Dashboard jakości powietrza – miasta wojewódzkie</h1>
 
-        <label for="cities">Miasta (CMD/CTRL = wiele):</label>
-        <select name="cities" id="cities" multiple size="10">
-            {% for city in cities %}
-                <option value="{{ city }}" {% if selected_cities and city in selected_cities %}selected{% endif %}>{{ city }}</option>
-            {% endfor %}
-        </select>
+<div class="panel">
 
-        <button type="submit">Generuj wykres</button>
-    </form>
+    <div class="control-box">
+        <label>Parametr:</label>
+        <select id="pollutantSelect"></select>
+    </div>
 
-    <h3>Wykres</h3>
-    {% if plot %}
-        <div id="graph-div"></div>
-        <script>
-            var graphs = {{ plot | safe }};
-            Plotly.newPlot('graph-div', graphs.data, graphs.layout);
-        </script>
-    {% endif %}
+    <div class="control-box">
+        <label>Miasta (CMD/CTRL = wiele):</label>
+        <select id="citySelect" multiple size="10"></select>
+    </div>
 
-    {% if stats_table %}
-        <h3>Statystyki stacji</h3>
-        <table>
+    <button id="generateBtn">Generuj wykres</button>
+
+</div>
+
+<h2>Wykres</h2>
+<canvas id="chart"></canvas>
+
+<h2>Statystyki</h2>
+<table id="statsTable">
+    <tr>
+        <th>Miasto</th>
+        <th>Min</th>
+        <th>Max</th>
+        <th>Średnia</th>
+        <th>Liczba dni</th>
+    </tr>
+</table>
+
+
+<script>
+let chart = null;
+
+async function loadPollutants() {
+    const res = await fetch("/api/pollutants");
+    const data = await res.json();
+    const sel = document.getElementById("pollutantSelect");
+
+    data.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        sel.appendChild(opt);
+    });
+}
+
+async function loadCities() {
+    const res = await fetch("/api/cities");
+    const cities = await res.json();
+    const sel = document.getElementById("citySelect");
+
+    cities.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        sel.appendChild(opt);
+    });
+}
+
+function randomColor() {
+    return "hsl(" + Math.floor(Math.random() * 360) + ", 70%, 45%)";
+}
+
+async function loadChart() {
+    const pollutant = document.getElementById("pollutantSelect").value;
+
+    const cities = [...document.getElementById("citySelect").selectedOptions]
+        .map(o => o.value);
+
+    if (cities.length === 0) {
+        alert("Wybierz przynajmniej jedno miasto.");
+        return;
+    }
+
+    const res = await fetch("/api/multi", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({cities, pollutant})
+    });
+
+    const rows = await res.json();
+
+    if (chart) chart.destroy();
+
+    const grouped = {};
+    for (const r of rows) {
+        const city = r[0];
+        if (!grouped[city]) grouped[city] = [];
+        grouped[city].push({date: r[1], value: r[2]});
+    }
+
+    const labels = [...new Set(rows.map(r => r[1]))];
+
+    const datasets = Object.keys(grouped).map(city => ({
+        label: city,
+        data: grouped[city].map(e => e.value),
+        borderColor: randomColor(),
+        borderWidth: 2,
+        fill: false
+    }));
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {labels, datasets},
+        options: {responsive: true}
+    });
+
+    const statsTable = document.getElementById("statsTable");
+    statsTable.innerHTML = `
+        <tr>
+            <th>Miasto</th>
+            <th>Min</th>
+            <th>Max</th>
+            <th>Średnia</th>
+            <th>Liczba dni</th>
+        </tr>`;
+
+    for (const city of cities) {
+        const sRes = await fetch(`/api/stats/${city}/${pollutant}`);
+        const s = await sRes.json();
+
+        statsTable.innerHTML += `
             <tr>
-                <th>Miasto</th>
-                <th>Min</th>
-                <th>Max</th>
-                <th>Średnia</th>
-                <th>Liczba dni</th>
-            </tr>
-            {% for row in stats_table %}
-                <tr>
-                    <td>{{ row.city }}</td>
-                    <td>{{ row.min }}</td>
-                    <td>{{ row.max }}</td>
-                    <td>{{ row.mean }}</td>
-                    <td>{{ row.count }}</td>
-                </tr>
-            {% endfor %}
-        </table>
-    {% endif %}
+                <td>${city}</td>
+                <td>${s.min?.toFixed(1) || "-"}</td>
+                <td>${s.max?.toFixed(1) || "-"}</td>
+                <td>${s.avg?.toFixed(1) || "-"}</td>
+                <td>${s.days}</td>
+            </tr>`;
+    }
+}
+
+
+document.addEventListener("DOMContentLoaded", async () => {
+    await loadPollutants();
+    await loadCities();
+    document.getElementById("generateBtn").onclick = loadChart;
+});
+</script>
+
 </body>
 </html>

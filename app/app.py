@@ -1,65 +1,49 @@
-from flask import Flask, render_template, request
-from modules.queries import get_daily_avg_with_stats, get_available_cities, get_pollutants
-import plotly.graph_objs as go
-import plotly
-import json
+from flask import Flask, jsonify, request, render_template
+from modules.queries import (
+    get_available_pollutants,
+    get_available_cities,
+    get_daily_city_avg,
+    get_multi_city_daily_avg,
+    get_city_stats
+)
 
 app = Flask(__name__)
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    pollutants = get_pollutants()
-    cities = get_available_cities()
-    return render_template('index.html', pollutants=pollutants, cities=cities)
+    return render_template("index.html")
 
 
-@app.route('/plot', methods=['POST'])
-def plot():
-    pollutant = request.form['pollutant']
-    selected_cities = request.form.getlist('cities')
-
-    pollutants = get_pollutants()
-    cities = get_available_cities()
-
-    stats_table = []
-    traces = []
-
-    for city in selected_cities:
-        df = get_daily_avg_with_stats(city, pollutant)
-        if df.empty:
-            continue
-
-        traces.append(go.Scatter(
-            x=df['date'],
-            y=df['mean'],
-            mode='lines+markers',
-            name=city
-        ))
-
-        stats_table.append({
-            'city': city,
-            'min': round(df['min'].min(), 1),
-            'max': round(df['max'].max(), 1),
-            'mean': round(df['mean'].mean(), 1),
-            'count': len(df)
-        })
-
-    layout = go.Layout(title='Średnie dobowe stężeń',
-                       xaxis=dict(title='Data'),
-                       yaxis=dict(title=f'{pollutant} (µg/m³)'))
-
-    fig = go.Figure(data=traces, layout=layout)
-    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-    return render_template('index.html',
-                           plot=graphJSON,
-                           pollutants=pollutants,
-                           cities=cities,
-                           selected_pollutant=pollutant,
-                           selected_cities=selected_cities,
-                           stats_table=stats_table)
+@app.route("/api/pollutants")
+def api_pollutants():
+    rows = get_available_pollutants()
+    return jsonify([r[0] for r in rows])
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.route("/api/cities")
+def api_cities():
+    return jsonify(get_available_cities())
+
+
+@app.route("/api/city/<city>/<pollutant>")
+def api_city(city, pollutant):
+    return jsonify(get_daily_city_avg(city, pollutant))
+
+
+@app.route("/api/multi", methods=["POST"])
+def api_multi():
+    data = request.json
+    cities = data["cities"]
+    pollutant = data["pollutant"]
+    rows = get_multi_city_daily_avg(cities, pollutant)
+    return jsonify(rows)
+
+
+@app.route("/api/stats/<city>/<pollutant>")
+def api_stats(city, pollutant):
+    return jsonify(get_city_stats(city, pollutant))
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=8000)
