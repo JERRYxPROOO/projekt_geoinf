@@ -4,8 +4,10 @@ from modules.queries import (
     get_available_cities,
     get_daily_city_avg,
     get_multi_city_daily_avg,
-    get_city_stats
+    get_city_stats,
+    get_city_multi_pollutants
 )
+
 
 app = Flask(__name__)
 
@@ -14,6 +16,13 @@ app = Flask(__name__)
 def index():
     return render_template("index.html")
 
+@app.route("/api/city-multi", methods=["POST"])
+def api_city_multi():
+    data = request.get_json()
+    city = data["city"]
+    pollutants = data["pollutants"]
+    rows = get_city_multi_pollutants(city, pollutants)
+    return jsonify(rows)
 
 @app.route("/api/pollutants")
 def api_pollutants():
