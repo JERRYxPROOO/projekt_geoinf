@@ -5,6 +5,7 @@ from modules.station_names import station_to_city, CITY_DEFS
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, "db", "air.db")
 
+
 def query(sql, params=()):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -76,3 +77,20 @@ def get_city_stats(city, pollutant):
         "avg": row[2],
         "days": row[3]
     }
+
+def get_city_multi_pollutants(city, pollutants):
+    station_patterns = CITY_DEFS[city]
+    like_filters = " OR ".join([f"station_code LIKE ?" for _ in station_patterns])
+    pollutant_placeholders = ",".join(["?"] * len(pollutants))
+    params = [f"%{k}%" for k in station_patterns] + pollutants
+
+    sql = f"""
+        SELECT pollutant, date, AVG(value)
+        FROM measurements
+        WHERE ({like_filters})
+          AND pollutant IN ({pollutant_placeholders})
+        GROUP BY pollutant, date
+        ORDER BY date;
+    """
+
+    return query(sql, params)
