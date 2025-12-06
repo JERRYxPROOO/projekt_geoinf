@@ -1,0 +1,18 @@
+# Bazy danych
+*.db
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Środowiska
+.env
+.venv/
+venv/
+
+# PyCharm / IntelliJ config
+.idea/
+
+# Backupy i pliki tymczasowe
+*.log
+.DS_Store
