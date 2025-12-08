@@ -94,3 +94,13 @@ def get_city_multi_pollutants(city, pollutants):
     """
 
     return query(sql, params)
+
+
+def get_matrix_data(cities, pollutants):
+    result = []
+    for city in cities:
+        for pollutant in pollutants:
+            rows = get_daily_city_avg(city, pollutant)
+            for date, avg in rows:
+                result.append((city, pollutant, date, avg))
+    return result

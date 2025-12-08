@@ -5,7 +5,8 @@ from modules.queries import (
     get_daily_city_avg,
     get_multi_city_daily_avg,
     get_city_stats,
-    get_city_multi_pollutants
+    get_city_multi_pollutants,
+    get_matrix_data
 )
 
 
@@ -52,6 +53,15 @@ def api_multi():
 @app.route("/api/stats/<city>/<pollutant>")
 def api_stats(city, pollutant):
     return jsonify(get_city_stats(city, pollutant))
+
+@app.route("/api/matrix", methods=["POST"])
+def api_matrix():
+    data = request.get_json()
+    cities = data["cities"]
+    pollutants = data["pollutants"]
+    rows = get_matrix_data(cities, pollutants)
+    return jsonify(rows)
+
 
 
 if __name__ == "__main__":
